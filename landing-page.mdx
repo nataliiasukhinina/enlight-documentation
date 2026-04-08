@@ -1,0 +1,310 @@
+---
+title: "Landing Page"
+---
+
+# LANDING PAGE DOCUMENTATION
+
+## 1. PAGE OVERVIEW
+
+- **Filename/Route:** [landing-page.component.ts](apps/bank-account-dao/src/app/landing-page/landing-page.component.ts) / Route: `/`
+- **Description:** The Landing Page serves as the entry point for users in the Bank Account DAO application. It is the initial workflow selection screen where users choose their primary task: opening a new account, creating/editing a Customer Information File (CIF), or performing account maintenance. Based on the selected task and account type (Personal or Business), the page dynamically renders conditional form fields to guide users through the appropriate downstream workflow.
+- **Feature Flags:**
+  - `selectIsCifCreateEnabled`: Controls visibility of the "CREATE/EDIT A CIF" task option. When false, only "OPEN AN ACCOUNT" displays. When true, the user sees both options.
+  - `selectIsAccountMaintenanceEnabled`: Controls visibility of the "MAINTENANCE ACCOUNT" task option. When true, the user can select this task for account maintenance workflows.
+
+---
+
+## 2. UI ELEMENTS & FUNCTIONALITY
+
+### Element Map
+
+| Element | Function | Trigger | Visibility |
+| --- | --- | --- | --- |
+| **Welcome Heading** | Displays "Welcome to Your Spend Life Wisely Journey" as the page title | Always visible | Always |
+| **Task Selector (Button Toggle)** | Allows users to select their primary workflow: "OPEN AN ACCOUNT", "CREATE/EDIT A CIF" (if feature flag enabled), or "MAINTENANCE ACCOUNT" (if feature flag enabled) | User clicks a button toggle option | Visible if `isCifCreateEnabled` or `isAccountMaintenanceEnabled` is true; otherwise hidden (default "OPEN AN ACCOUNT" auto-selected) |
+| **Account Type Selector (Button Toggle)** | Allows users to select between "Personal" or "Business" account types | User clicks a button toggle option | Visible for "OPEN AN ACCOUNT" and "CREATE/EDIT A CIF" flows; hidden for "MAINTENANCE ACCOUNT" |
+| **Community Bank Location Selector (Button Toggle)** | Displays available community bank locations with map icons. User selects the bank location for the account | User clicks a button toggle option | Visible only when: `isOpenAccountFlow` = true AND `accountType` is selected |
+| **Ownership Type Dropdown (p-select)** | Displays available ownership structures/types (e.g., Sole Proprietorship, Partnership) filtered by account type and location. For "OPEN AN ACCOUNT" flow | User selects from dropdown | Visible only when: `isOpenAccountFlow` = true AND `communityBankLocation` is selected |
+| **Entity Type Dropdown (p-select)** | Displays available entity types (business structures). For "CREATE/EDIT A CIF" flow with Business account type | User selects from dropdown | Visible only when: `isCreateCifBusinessFlow` = true AND `accountType` is "Business" |
+| **Continue Button** | Initiates the workflow based on selected form values. Routes user to the appropriate next step (e.g., customer search dialog, account maintenance dialog) | User clicks "Continue" button | Always visible when skeleton loader is not active; disabled when form is invalid or options are loading |
+| **Skeleton Loader** | Displays placeholder while ownership structures are being fetched from the backend | N/A (automatic) | Visible when `structuresLoading()` = true |
+
+### Use Cases
+
+**Use Case 1: Open a Personal Account (Default Flow)**
+
+1. User lands on the page; feature flags are still loading.
+2. If no feature flags are enabled, "OPEN AN ACCOUNT" task is auto-selected.
+3. User selects "Personal" account type via button toggle.
+4. User selects a Community Bank Location (e.g., "CHICAGO").
+5. Ownership Type dropdown populates with available structures (e.g., "Individual").
+6. User selects the ownership type.
+7. User clicks "Continue".
+8. The service dispatches `createEngagementAndSelectProfile` action and opens a customer search dialog.
+9. User searches for and selects a personal customer.
+10. Upon successful selection, router navigates to the customer overview page or next workflow step.
+
+**Use Case 2: Create/Edit a Business CIF**
+
+1. Feature flag `selectIsCifCreateEnabled` is true.
+2. User selects "CREATE/EDIT A CIF" from task selector.
+3. User selects "Business" account type.
+4. Community Bank Location field is disabled (not required for CIF-only flow).
+5. Entity Type dropdown populates (using default bank location internally).
+6. User selects an entity type (e.g., "LLC").
+7. User clicks "Continue".
+8. The service dispatches `createEngagementAndSelectProfile` action and opens a business search dialog.
+9. User searches for and selects a business.
+10. If business has a CIF, profile selection succeeds and dialog closes. If no CIF exists, a new CIF creation flow is initiated.
+11. Router navigates to customer overview.
+
+**Use Case 3: Account Maintenance**
+
+1. Feature flag `selectIsAccountMaintenanceEnabled` is true.
+2. User selects "MAINTENANCE ACCOUNT" from task selector.
+3. Account Type and Location fields are disabled.
+4. User clicks "Continue".
+5. The service opens an Account Maintenance search dialog.
+6. User searches for and selects an account (individual or business).
+7. Upon successful selection, router navigates to the customer overview page.
+
+### Conditions & Edge Cases
+
+| Condition | Behavior |
+| --- | --- |
+| **Feature flags not loaded** | Page displays normally but waits for `selectFeatureFlagsLoaded` selector to emit true before auto-selecting default task. |
+| **Ownership structures loading** | Skeleton loader displays in place of the form card. Continue button is disabled. `structuresLoading()` = true. |
+| **Ownership structures API fails** | `structureSets()` remains null, skeleton continues to display indefinitely (no explicit error state in component). |
+| **Form validation fails** | Continue button is disabled. User must correct form errors (missing required selections). |
+| **User selects Account Type = Business in CIF flow** | Entity Type dropdown is enabled instead of Ownership Type. Only business entity structures are available. |
+| **Only one ownership type available** | Dropdown automatically pre-fills and marks field as untouched (no user input required). |
+| **User changes Community Bank Location** | Ownership Type dropdown resets, fetches options for new location, and auto-fills if only one option exists. |
+| **User changes Account Type while Community Bank Location selected** | For CIF Business flow: Entity Type options update automatically. For Open Account: Ownership Type options update. |
+| **Customer/Business search dialog closed without selection** | Dialog closes, page remains on landing page with form state preserved. No navigation occurs. |
+| **Customer/Business creation fails** | Error actions are dispatched; dialog remains open; no navigation occurs. |
+| **User not authenticated** | `samAccountName` and `relationshipBankerName` are undefined; actions are still dispatched with these undefined values (backend may handle gracefully). |
+
+---
+
+## 3. STYLING ARCHITECTURE
+
+### Global Styles
+
+- **Tailwind CSS Classes:**
+  - `flex`, `flex-col`: Layout utilities for column and row layouts
+  - `items-center`: Center alignment
+  - `px-[80px]`, `py-[16px]`, `gap-2`, `gap-6`: Padding and gap spacing
+  - `pt-[64px]`, `pb-[40px]`: Padding on top/bottom
+  - `text-primary`: Primary text color from design system
+  - `text-6xl`, `text-2xl`: Font sizes
+  - `leading-[72px]`, `font-light`: Line height and font weight
+  - `text-center`: Text alignment
+  - `w-full`, `min-w-[500px]`, `min-w-[800px]`: Width utilities
+  - `rounded-sm`: Border radius
+  - `shadow-elevation-4`: Shadow elevation from design system
+  - `justify-end`: Flexbox alignment
+- **Tokens/Design System References:**
+  - `text-primary`: Applied to the welcome heading section
+  - `shadow-elevation-4`: Card shadow elevation
+
+### Component-Specific Styles
+
+- **File:** [landing-page.component.scss](apps/bank-account-dao/src/app/landing-page/landing-page.component.scss)
+- **Styles:**
+  - `.title`: Applies `font-sans` font family to the "I want to..." heading
+
+### Encapsulation Mode
+
+- **Default:** ViewEncapsulation.Emulated (Angular default; component-specific styles are scoped to the component)
+
+---
+
+## 4. ARCHITECTURAL ELEMENTS
+
+### Components
+
+| Child Component | Location | Input Bindings | Output Bindings |
+| --- | --- | --- | --- |
+| **ActionButtonSetComponent** | `@bank-account-dao/common-ui/core` | `[isPrimaryActionDisabled]`, `[showSecondaryActionButton]` | `(primaryAction)` |
+| **ButtonToggleComponent** | `@bank-account-dao/common-ui/core` | `[options]`, `[formControl]` | (integrated with ReactiveFormsModule) |
+| **FormControlWrapperComponent** | `@bank-account-dao/common-ui/core` | `[label]`, `[inputId]` | N/A (wrapper component) |
+| **Card** | `primeng/card` | N/A (structural) | N/A |
+| **Select** | `primeng/select` | `[options]`, `[loading]`, `[formControl]`, `optionLabel`, `optionValue`, `fluid` | (integrated with ReactiveFormsModule) |
+| **Skeleton** | `primeng/skeleton` | `[width]`, `[height]` | N/A (loading placeholder) |
+
+### Services
+
+| Service | Injected As | Methods Called |
+| --- | --- | --- |
+| **LandingPageService** | `this.service` (injected) | `onContinue()`, `initAuth()` |
+| **Store (NgRx)** | `this.store` (injected) | `dispatch()`, `select()`, `selectSignal()` |
+| **OwnershipTypesService** | `this._ownershipTypesService` | `getOwnershipStructures(location, accountType)` |
+| **AuthService** | `this._authService` (via service) | `user$` (observable subscription) |
+| **ProfilesStore** | Provided in component | `clearState()` |
+| **DialogService** | `primeng/dynamicdialog` (provided) | Used indirectly by child dialog services |
+| **Router** | `this._router` (via service) | `navigate()` |
+| **DestroyRef** | `this.destroyRef` (injected) | Used with `takeUntilDestroyed()` |
+| **Actions** | `this.actions$` (via service) | `pipe(ofType(...))` for action filtering |
+
+### Models
+
+| Model/Interface | Source | Usage |
+| --- | --- | --- |
+| **LandingPageForm** | [landing-page-form.ts](apps/bank-account-dao/src/app/landing-page/landing-page-form.ts) | Reactive form group with form controls: selectedTask, accountType, communityBankLocation, ownershipType, entityType |
+| **ButtonToggleOption** | `@bank-account-dao/common-ui/core` | UI option model for button toggles: `{ label, value, svgIcon? }` |
+| **OwnershipStructure** | `@bank-account-dao/data-access-shared` | Represents available ownership structures; properties: id, displayName, legalName, classCode, accountType, stateCode, isPod, isRos |
+| **Customer** | `@bank-account-dao/data-access-shared` | Customer model with customerInformationFile (CIF), customerType (Personal), and other properties |
+| **BusinessInformation** | `@bank-account-dao/data-access-shared` | Business model with id, businessType, customerInformationFile (CIF), and other properties |
+| **AccountTypeEnum** | `@bank-account-dao/data-access-shared` (Engagement) | Enum: Personal, Business |
+| **SearchTypes** | `@bank-account-dao/data-access-shared` | Enum: INDIVIDUAL, BUSINESS, ALL |
+| **OwnershipUpdate** | `@bank-account-dao/data-access-customer` | Payload for `landingPageComponentActions.updateOwnership`: accountType, ownershipTypeId, classCode, isPod, isRos, etc. |
+
+---
+
+## 5. REACTIVE PATTERNS
+
+### Reactive Streams
+
+1. **Feature Flags Loading Stream**
+   - **Description:** On component initialization, the feature flags are reloaded. The component waits for `selectFeatureFlagsLoaded` to emit true (using `filter()` and `take(1)`). Once flags are loaded and if no toggle flags are enabled, the default task "OPEN AN ACCOUNT" is auto-selected.
+   - **RxJS Operators:** `select()`, `filter()`, `take()`, `takeUntilDestroyed()`
+2. **Ownership Structures Loading Stream**
+   - **Description:** After the component loads, it waits for `ownershipStructureFeature.selectOwnershipStructures` to emit a non-null value. Once data arrives, the `_isFetchingOptions` signal is set to false.
+   - **RxJS Operators:** `select()`, `filter()`, `take()`, `takeUntilDestroyed()`
+3. **Task Selection Changes Stream**
+   - **Description:** Whenever the user changes the selected task (via button toggle), the component updates flow flags (`isOpenAccountFlow`, `isCreateCifBusinessFlow`, `isAccountMaintenanceFlow`), dispatches UI flow actions (`setCreateCifOnly`, `setIsAccountMaintenance`), and re-enables/disables form controls.
+   - **RxJS Operators:** `valueChanges`, `takeUntilDestroyed()`
+4. **Account Type Changes Stream**
+   - **Description:** When account type changes, the component updates the stored `accountType` and `searchType`, calls `updateFlowFlags()`, and (for CIF Business flow) fetches and auto-fills ownership types.
+   - **RxJS Operators:** `valueChanges`, `takeUntilDestroyed()`
+5. **Combined Location & Account Type Changes Stream**
+   - **Description:** A `combineLatest` stream watches both `communityBankControl.valueChanges` and `accountTypeControl.valueChanges`. When both have values, it fetches ownership structures for the selected location and account type. If only one structure exists, it auto-fills the ownership type dropdown.
+   - **RxJS Operators:** `combineLatest()`, `filter()`, `takeUntilDestroyed()`
+6. **Form Value Stream**
+   - **Description:** The `formValue` signal is derived from `form.valueChanges` using `toSignal()`. It provides the current raw form value and updates reactively whenever any form control changes.
+   - **RxJS Operators:** `valueChanges`, `map()`, `toSignal()`
+
+### Data Life Cycle
+
+- **OnInit:** Component dispatches `landingPageComponentActions.loaded()` and `featureFlagsActions.reload()` to initialize state. It sets up all listener subscriptions and waits for feature flags to load.
+- **Form Changes:** Any form control change triggers appropriate listeners that update flow flags, dispatch UI flow actions, and optionally fetch new ownership structures data.
+- **OnDestroy:** The `DestroyRef` is used with `takeUntilDestroyed()` to automatically unsubscribe from all streams when the component is destroyed. This prevents memory leaks.
+- **State Cleanup:** Before continuing to the next workflow, the service calls `clearSearchData()` to clear previous ownership structure data via `engagementHydrationServiceOwnershipActions.clearState()` and `SearchUtils.clearSearchData()`.
+
+---
+
+## 6. STATE MANAGEMENT (NgRx)
+
+### Store Slice
+
+The Landing Page interacts with multiple state slices:
+
+- **Customer Data Access Store:** `ownershipStructureFeature.selectOwnershipStructures` (ownership structures data)
+- **Engagement Data Access Store:** `selectIsCifCreateEnabled`, `selectIsAccountMaintenanceEnabled` (feature flags), `selectFeatureFlagsLoaded`
+- **Orchestration Store:** Used indirectly through actions for business orchestration workflows
+
+### Actions
+
+| Action | Source | Payload | Purpose |
+| --- | --- | --- | --- |
+| `landingPageComponentActions.loaded()` | Component (ngOnInit) | Empty | Signals that the landing page component has loaded |
+| `featureFlagsActions.reload()` | Component (ngOnInit) | Empty | Triggers feature flags reload from backend |
+| `landingPageComponentUiFlowActions.setCreateCifOnly()` | setupListeners (task selection change) | `{ createCifOnly: boolean }` | Stores whether user selected CIF-only workflow |
+| `landingPageComponentUiFlowActions.setIsAccountMaintenance()` | setupListeners (task selection change) | `{ isAccountMaintenance: boolean }` | Stores whether user selected maintenance workflow |
+| `landingPageComponentActions.updateOwnership()` | Service (onContinue) | `{ ownership: OwnershipUpdate }` | Updates ownership structure data based on user selections |
+| `engagementHydrationServiceOwnershipActions.clearState()` | Service (onContinue) | Empty | Clears previous ownership structure state before starting new workflow |
+| `landingPageComponentEngagementActions.createEngagementAndSelectProfile()` | Service (continuePersonal, continueBusiness, continueMaintenance) | `{ samAccountName, relationshipBankerName, cif, searchType }` | Initiates engagement creation and profile selection for existing customers/businesses |
+| `landingPageComponentEngagementActions.createEngagementAndCreateCustomer()` | Service (customerCreation subscription) | `{ samAccountName, relationshipBankerName, customerId }` | Initiates engagement creation and new customer creation |
+| `landingPageComponentEngagementActions.createEngagementAndCreateBusiness()` | Service (businessCreation flow) | `{ samAccountName, relationshipBankerName, businessId }` | Initiates engagement creation and new business creation |
+| `landingPageComponentActions.selectBusinessWithFullLoading()` | Service (Open Account Business flow) | `{ cif: string }` | Selects a business and triggers full loading workflow |
+| `businessManagementDialogComponentActions.businessAdded()` | Service (newBusiness flow) | `{ business: BusinessInformation }` | Adds a new business to the store |
+| `landingPageComponentActions.setBusinessLoading()` | Service (newBusiness flow) | `{ loading: boolean }` | Toggles business loading state |
+
+### Selectors
+
+| Selector | Source Store | Return Type | Purpose |
+| --- | --- | --- | --- |
+| `ownershipStructureFeature.selectOwnershipStructures` | Customer Data Access | `OwnershipStructure[]` or null | Returns available ownership structures filtered by account type and state |
+| `selectIsCifCreateEnabled` | Engagement Data Access | `boolean` | Indicates if CIF creation feature is enabled |
+| `selectIsAccountMaintenanceEnabled` | Engagement Data Access | `boolean` | Indicates if account maintenance feature is enabled |
+| `selectFeatureFlagsLoaded` | Engagement Data Access | `boolean` | Indicates if feature flags have finished loading |
+
+### Effects
+
+Effects that respond to Landing Page actions:
+
+- **Feature Flags Effects:** Listen to `featureFlagsActions.reload()` and fetch feature flag data from the backend
+- **Ownership Structures Effects:** Listen to `landingPageComponentActions.loaded()` and fetch ownership structures
+- **Engagement Effects:** Listen to `landingPageComponentEngagementActions.createEngagementAndSelectProfile()` and orchestrate engagement and profile selection workflows
+- **Profile Selection Effects:** Listen to profile selection actions and navigate to the appropriate screen (e.g., customer overview, account maintenance) or handle failures by opening creation dialogs
+- **Business Orchestration Effects:** Listen to business-related actions and coordinate business creation, profile selection, and account opening workflows
+
+### Reducers
+
+**Landing Page Component Reducer:**
+
+- Handles `landingPageComponentActions.updateOwnership()`: Stores selected ownership structure details (accountType, ownershipTypeId, classCode, isPod, isRos, etc.)
+- Handles `landingPageComponentActions.loadingCustomerProfile()`: Updates loading state
+- Handles `landingPageComponentActions.addCustomer()`: Stores customer data
+- Handles `landingPageComponentActions.addCustomers()`: Stores multiple customers
+- Handles `landingPageComponentActions.setBusinessLoading()`: Updates business loading state
+
+**Feature Flags Reducer:**
+
+- Handles `featureFlagsActions.reload()`: Triggers loading state
+- Stores feature flag values (`selectIsCifCreateEnabled`, `selectIsAccountMaintenanceEnabled`) based on backend response
+
+**Ownership Structures Reducer:**
+
+- Handles fetch actions and stores the returned ownership structures data
+
+---
+
+## 7. ADDITIONAL REQUIREMENTS (DEVELOPER QUALITY CHECKS)
+
+### Dependency Map
+
+| Library/Package | Usage |
+| --- | --- |
+| **@angular/core** | Component lifecycle (OnInit, signals, computed, DestroyRef, inject) |
+| **@angular/common** | CommonModule for structural directives (@if, @else, @ng-container) |
+| **@angular/forms** | ReactiveFormsModule, FormControl, FormGroup, Validators, AbstractControl |
+| **@ngrx/store** | Store injection, dispatch, select, selectSignal for state management |
+| **@ngrx/effects** | Effects, Actions, ofType for handling side effects (injected in service) |
+| **primeng/card** | Card component for form container |
+| **primeng/select** | Dropdown (p-select) for ownership/entity type selection |
+| **primeng/skeleton** | Skeleton loader for loading state |
+| **primeng/dynamicdialog** | DialogService for opening customer/business search dialogs |
+| **rxjs** | combineLatest, map, filter, take, takeUntilDestroyed for reactive streams |
+| **@bank-account-dao/common-ui/core** | ActionButtonSetComponent, ButtonToggleComponent, FormControlWrapperComponent |
+| **@bank-account-dao/data-access-customer** | OwnershipTypesService, ProfilesStore, landing page customer actions |
+| **@bank-account-dao/data-access-engagement** | Feature flag selectors, landing page engagement actions |
+| **@bank-account-dao/data-access-reference** | COMMUNITY\_BANK\_LOCATION reference data |
+| **@bank-account-dao/data-access-shared** | Shared models (Customer, BusinessInformation, OwnershipStructure, SearchTypes) |
+| **@bank-account-dao/data-access-orchestration** | Orchestration actions for business workflows |
+| **@bank-account-dao/shared-customer-ui/core** | Dialog services (CustomerPersonDialogService, CustomerBusinessDialogService, AccountMaintenanceDialogService), SearchUtils |
+| **@bank-account-dao/test-ids** | Test ID constants for automated testing |
+
+### Performance Notes
+
+1. **Change Detection Strategy:** Not explicitly set (defaults to default strategy). The component uses a mix of:
+   - **Signals** for fast, fine-grained reactivity: `structureSets`, `isCifCreateEnabled`, `isAccountMaintenanceEnabled`, `_isFetchingOptions`
+   - **Computed signals** for derived state: `taskOptions()`, `availableStructures()`, `structureOptions()`, `structuresLoading()`. These recompute only when their dependencies change.
+   - **toSignal()** for converting RxJS streams to signals: `formValue`
+2. **Heavy Computations:**
+   - **Ownership Structures Filtering** (`availableStructures()` computed): Filters ownership structures by account type and state code. This is efficient if the data set is small but could be optimized in the backend if the data grows large.
+   - **Structure Options Mapping** (`structureOptions()` computed): Maps available structures to dropdown options on every change. Runs synchronously but should be lightweight.
+3. **Async Operations:**
+   - **`getOwnershipStructures()`**: Makes an HTTP request to the backend via `OwnershipTypesService`. The component sets `_isFetchingOptions` to true during the fetch and false upon completion. The UI disables the Continue button and related dropdowns during the loading state.
+   - **`onContinue()` async method**: Handles multiple workflows (personal, business, maintenance) with dialog subscriptions and action dispatches. All subscriptions are properly cleaned up via `takeUntilDestroyed()`.
+4. **Memory Management:**
+   - All RxJS subscriptions are properly cleaned up using `takeUntilDestroyed(this.destroyRef)`. This prevents memory leaks when the component is destroyed.
+   - Reactive form listeners via `valueChanges` are also managed with `takeUntilDestroyed()`.
+5. **Optimization Opportunities:**
+   - Consider OnPush change detection strategy if the component becomes part of a larger application to reduce unnecessary change detection cycles. Currently uses the default strategy.
+   - Ownership structures could be cached or preloaded at the app level rather than fetched on demand for each location/account type combination.
+   - The `formValue` signal using `toSignal()` could be replaced with direct form control subscriptions if the current reactive pattern becomes performance-critical.
+
+---
+
+**Documentation generated:** April 8, 2026 **Component analyzed:** Landing Page (`landing-page.component.ts`)

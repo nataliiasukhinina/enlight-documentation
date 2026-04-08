@@ -8,7 +8,18 @@
   "navigation": {
     "groups": [
       {
-        "group": "Getting Started",
+        "group": "Enlight Development",
+        "pages": [
+          {
+            "group": "Pages",
+            "pages": [
+              "landing-page"
+            ]
+          }
+        ]
+      },
+      {
+        "group": "AI Resources",
         "pages": []
       }
     ]
